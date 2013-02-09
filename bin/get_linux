@@ -13,8 +13,8 @@ $database = "allthefucks"
 
 db = Aggregator::CouchDB.new($host,$port)
 last = (`last -Fw | head --lines=-2`).split("\n")
-hostname = `hostname`.strip.intern
-os = `uname`.strip.intern
+hostname = `hostname`.strip.downcase.intern
+os = `uname`.strip.downcase.intern
 now = Time.now
 
 =begin
@@ -39,7 +39,7 @@ end
 
 last.each do |line|
   line = line.strip.split
-
+  
   # Normalize the data
   if line[1].include? 'tty'
     line.insert(2, nil)
@@ -56,14 +56,12 @@ last.each do |line|
   line.insert(-2, Time.from_asctime(line.slice!(-6, 5).join(' ')))
 
   session = Aggregator::Session.new(
-    line[0], # user
-    hostname, # machine
-    os, # os
-    line[1], # src
-    line[2], # ip
-    line[3], # started
-    line[4], # ended
-    now # timestamp
+    hostname, # hostname
+    os,       # os
+    line[1].include?('tty') ? :tty : :pts,  # src
+    line[3],  # started
+    line[4],  # ended
+    now       # set
   )
 
   unless session.ended and session.ended < now - 10*60
