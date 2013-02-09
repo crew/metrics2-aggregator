@@ -22,32 +22,52 @@ Need to parse each line of last to find all sessions from the
 last ten minutes (pre-existing, existing, and still-existing).
 =end
 
+# Need a way to go from an ascii representation of time to a Time
+# instance
 class Time
   # Creates a Time instance from an asctime
-  # "Wed Apr  9 08:56:03 2003"
+  # ex: "Wed Apr  9 08:56:03 2003"
   def self.from_asctime(asctime)
     # ["Apr", "9", "08:56:03", "2003"]
     timestamp = asctime.split.drop(1)
     # [8, 56, 3]
     time = timestamp[2].split(':').map { |x| x.to_i }
-    Time.local(timestamp[3].to_i, timestamp[0], timestamp[1].to_i, time[0], time[1], time[2])
+    Time.local(timestamp[3].to_i, timestamp[0], timestamp[1].to_i,
+               time[0], time[1], time[2])
   end
 end
 
 last.each do |line|
+  line = line.strip.split
+
+  # Normalize the data
+  if line[1].include? 'tty'
+    line.insert(2, nil)
+  end
+  if line[-3, 3].join(' ') == 'still logged in'
+    line.pop(3)
+    line << nil
+  else
+    line.pop
+    tmp = Time.from_asctime(line.pop(5).join(' '))
+    line.pop
+    line << tmp
+  end
+  line.insert(-2, Time.from_asctime(line.slice!(-6, 5).join(' ')))
+
   session = Aggregator::Session.new(
-    line[0..8].strip, # user
+    line[0], # user
     hostname, # machine
     os, # os
-    line[9..21].strip, # src
-    line[22..38].strip, # ip
-    Time.from_asctime(line[39..63].strip), # started
-    (line.include?('still logged in') ? nil : Time.from_asctime(line[66..89])), # ended
+    line[1], # src
+    line[2], # ip
+    line[3], # started
+    line[4], # ended
     now # timestamp
   )
 
-  # db.post("/"+$database, entry.to_json)
-  p line
-  puts session.to_json
+  unless session.ended and session.ended < now - 10*60
+    db.post("/"+$database, session.to_json)
+  end
 end
 
