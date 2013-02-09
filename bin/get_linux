@@ -1,0 +1,53 @@
+#!/usr/bin/ruby
+
+require '../lib/aggregator'
+
+# Constants
+$host = "localhost"
+$port = "5984"
+$database = "allthefucks"
+
+# Example raw input data
+# hyfi     pts/11       nomad.ccs.neu.ed Fri Feb  8 18:32:59 2013   still logged in
+# hyfi     pts/0        c-24-62-61-212.h Fri Feb  8 01:54:57 2013 - Fri Feb  8 04:33:51 2013  (02:38)
+
+db = Aggregator::CouchDB.new($host,$port)
+last = (`last -Fw | head --lines=-2`).split("\n")
+hostname = `hostname`.strip.intern
+os = `uname`.strip.intern
+now = Time.now
+
+=begin
+Need to parse each line of last to find all sessions from the
+last ten minutes (pre-existing, existing, and still-existing).
+=end
+
+class Time
+  # Creates a Time instance from an asctime
+  # "Wed Apr  9 08:56:03 2003"
+  def self.from_asctime(asctime)
+    # ["Apr", "9", "08:56:03", "2003"]
+    timestamp = asctime.split.drop(1)
+    # [8, 56, 3]
+    time = timestamp[2].split(':').map { |x| x.to_i }
+    Time.local(timestamp[3].to_i, timestamp[0], timestamp[1].to_i, time[0], time[1], time[2])
+  end
+end
+
+last.each do |line|
+  session = Aggregator::Session.new(
+    line[0..8].strip, # user
+    hostname, # machine
+    os, # os
+    line[9..21].strip, # src
+    line[22..38].strip, # ip
+    Time.from_asctime(line[39..63].strip), # started
+    (line.include?('still logged in') ? nil : Time.from_asctime(line[66..89])), # ended
+    now # timestamp
+  )
+
+  # db.post("/"+$database, entry.to_json)
+  p line
+  puts session.to_json
+end
+
