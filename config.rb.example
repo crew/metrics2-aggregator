@@ -1,0 +1,18 @@
+module Aggregator
+  module Config
+    # The server CouchDB is running on
+    HOST = 'localhost'
+    # CouchDB's port
+    PORT = 1337
+    # The database
+    DATABASE = 'foobar'
+
+    # The directory the Windows log files are stored.
+    # Windows log files have unix timestamps for names.
+    WINDOWS_LOG_DIR = '/where/your/windows/log/files/are/stored'
+
+    # The directory the Linux w10 files are stored.
+    # Linux log files have names like "#{hostname}-#{timestamp}".
+    LINUX_LOG_DIR = '/where/your/linux/log/files/are/stored'
+  end
+end
