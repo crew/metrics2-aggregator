@@ -9,27 +9,37 @@ require '../lib/aggregator'
 # send : Array of Sessions -> void
 # Given an array of Sessions, throws every Session
 # that was within the last 10 minutes into CouchDb
-def send(sessions)
-  sessions.each do |session|
-    ten_minutes_ago = session.set - 10*60
-    if (session.ended and session.ended >= ten_minutes_ago) or (session.started and session.started >= ten_minutes_ago)
-      @couch.post('/'+@database, session.to_json)
-    end
+def send(data)
+  data.each do |entry|
+    @couch.post('/'+@database, entry.to_json)
   end
+  data
 end
 
-# get_last : String -> Array of Sessions
-# Given a filename for a Linux w10 file, grabs the file,
-# parses the contents, and throws the data into CouchDb
+# get_last : String Symbol Time -> Array of Sessions
 def get_last(filename, hostname, set)
   last = (`last -Ff #{filename}| grep -v root | grep -v system | head --lines=-2`).split("\n")
-  sessions = last.map do |line|
-    Aggregator::Parser.parse_last_line(line, hostname, set)
+
+  data = {
+    hostname: hostname,
+    os: :linux,
+    users: {
+      total: 0,
+      tty: 0,
+      pts: 0
+    },
+    timestamp: set
+  }
+
+  last.map do |line|
+    session = Aggregator::Parser.parse_last_line(line, hostname, set)
+    if session.should_send?
+      data[:users][session.source] += 1
+      data[:users][:total] += 1
+    end
   end
 
-  send sessions
-
-  sessions
+  send data
 end
 
 # get_windows : String -> Array of Sessions
@@ -40,8 +50,22 @@ def get_windows(filename)
   filename = "#{Aggregator::Config::WINDOWS_LOG_DIR}/#{filename}"
   file = IO.readlines(filename, 'r')[0]
   sessions = Aggregator::Parser.get_windows_log(file, set)
-  send sessions
-  sessions
+
+  data = {
+    hostname: hostname,
+    os: :windows,
+    users: {
+      total: 0
+    },
+    timestamp: set
+  }
+
+  last.map do |line|
+    session = Aggregator::Parser.parse_last_line(line, hostname, set)
+    data[:users][:total] += 1 if session.should_send?
+  end
+
+  send data
 end
 
 # Does everything
