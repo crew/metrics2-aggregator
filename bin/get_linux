@@ -7,11 +7,13 @@ port = "5984"
 @database = "allthefucks"
 @db = Aggregator::CouchDB.new(host, port)
 set = Time.now
+windows_log_files_directory = "/home/aliukani/windows_logs/"
 
 # Example raw input data
 # hyfi     pts/11       nomad.ccs.neu.ed Fri Feb  8 18:32:59 2013   still logged in
 # hyfi     pts/0        c-24-62-61-212.h Fri Feb  8 01:54:57 2013 - Fri Feb  8 04:33:51 2013  (02:38)
 
+# get_last : Time -> void
 def get_last(set)
   last = (`last -Fw | grep -v root | head --lines=-2`).split("\n")
   hostname = `hostname`.strip.downcase.intern
@@ -28,4 +30,23 @@ def get_last(set)
   end
 end
 
-get_last set
+# get_windows_log : String Time -> void
+# Given the contents of a Windows log files (as a string),
+# and the Time for that dataset, throws the data into CouchDb
+def get_windows_log(output, set)
+  output.split!("\n")
+  set = []
+  # 1. Filter out anything that didn't happen after 10 minutes ago
+  # 2. Match login/logout events
+  # 3. Grab any logins that don't have a logout
+  # 4. Send it to Aggregator::Parser.parse_windows_log_line
+  output.each do |line|
+
+  end
+end
+
+# Linux machines
+# get_last set
+
+# Windows machines
+File.open
