@@ -29,5 +29,15 @@ module Aggregator
 
       Session.new(hostname, os, source, started, ended, set)
     end
+   
+    # Takes two lines from the windows log file: a login and logout
+    # (one of these can be nil)
+    def self.parse_windows_log_line(set, login, logout=nil)
+      # BEEDRILL:login:CCIS-WINDOWS:1330106270
+      login.split! ':' if login
+      # BEEDRILL:logout:CCIS-WINDOWS:1330108294
+      logout.split! ':' if logout
+      Session.new(login[0], :windows, :tty, login[3], logout[3], set)
+    end
   end
 end
