@@ -2,9 +2,9 @@
 module Aggregator
   class CouchDB
     # Set up this instance
-    def initialize(host, port)
-      @host = host
-      @port = port
+    def initialize
+      @host = Config::HOST
+      @port = Config::PORT
     end
 
     # Make http request
