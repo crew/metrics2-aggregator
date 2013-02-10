@@ -1,13 +1,13 @@
 #!/usr/bin/ruby
 
-require "../lib/aggregator"
+require '../lib/aggregator'
 
-host = "localhost"
-port = "5984"
-@database = "allthefucks"
+host = 'localhost'
+port = '5984'
+@database = 'allthefucks'
 @db = Aggregator::CouchDB.new(host, port)
-set = Time.now
-windows_log_files_directory = "/home/aliukani/windows_logs/"
+@set = Time.now
+WINDOWS_LOG_FILES_DIRECTORY_PATH = '/home/aliukani/windows-logs'
 
 # Example raw input data
 # hyfi     pts/11       nomad.ccs.neu.ed Fri Feb  8 18:32:59 2013   still logged in
@@ -25,28 +25,74 @@ def get_last(set)
 
     # Send it!
     unless session.ended and session.ended < set - 10*60
-      @db.post("/"+@database, session.to_json)
+      @db.post('/'+@database, session.to_json)
     end
   end
 end
 
-# get_windows_log : String Time -> void
-# Given the contents of a Windows log files (as a string),
+# get_windows_log : String Time -> Array of Sessions
+# Given the contents of a Windows log file (as a string),
 # and the Time for that dataset, throws the data into CouchDb
-def get_windows_log(output, set)
-  output.split!("\n")
-  set = []
+def get_windows_log(logs, set)
   # 1. Filter out anything that didn't happen after 10 minutes ago
   # 2. Match login/logout events
   # 3. Grab any logins that don't have a logout
   # 4. Send it to Aggregator::Parser.parse_windows_log_line
-  output.each do |line|
+  entries = {}
+  logs.split("\n").each { |line|
+    line = line.strip.split(':')
+    hostname = line[0].downcase.intern
+    entries[hostname] ||= []
+    entries[hostname] << {
+      hostname: hostname,
+      event: line[1].intern,
+      os: :windows,
+      time: Time.at(line[3].to_i)
+    }
+  }
 
+  results = []
+
+  entries.each do |hostname, events|
+    until events.empty?
+      result = {}
+      cursor = events.delete_at(0)
+      if cursor[:event] == :logout
+        # Got a logout! Go find the login
+        result[:logout] = cursor
+        i = events.index { |e| e[:event] == :login }
+        result[:login] = i ? events.delete_at(i) : nil
+      else
+        # Still logged in
+        result[:login] = cursor
+        result[:logout] = nil
+      end
+      login = result[:login][:time] if result[:login]
+      logout = result[:logout][:time] if result[:logout]
+      session = Aggregator::Session.new(hostname, :windows, :tty, login, logout, set)
+      results << session if login
+    end
   end
+
+  results
 end
 
-# Linux machines
-# get_last set
-
 # Windows machines
-File.open
+# Grabs all the logs for Windows machines
+def get_windows
+  logfiles = Dir.entries(WINDOWS_LOG_FILES_DIRECTORY_PATH)
+  logfiles.delete('.')
+  logfiles.delete('..')
+
+  logfilename = logfiles.map { |filename|
+    filename = "#{WINDOWS_LOG_FILES_DIRECTORY_PATH}/#{filename}"
+  }.reduce do |memo, filename|
+    File.mtime(memo) > File.mtime(filename) ? memo : filename
+  end
+
+  log = IO.readlines(logfilename, 'r')[0]
+
+  unless session.ended and session.ended < set - 10*60
+    @db.post('/'+@database, session.to_json)
+  end
+end
