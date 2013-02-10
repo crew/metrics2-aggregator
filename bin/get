@@ -7,11 +7,7 @@ port = '5984'
 @database = 'allthefucks'
 @db = Aggregator::CouchDB.new(host, port)
 @set = Time.now
-WINDOWS_LOG_FILES_DIRECTORY_PATH = '/home/aliukani/windows-logs'
-
-# Example raw input data
-# hyfi     pts/11       nomad.ccs.neu.ed Fri Feb  8 18:32:59 2013   still logged in
-# hyfi     pts/0        c-24-62-61-212.h Fri Feb  8 01:54:57 2013 - Fri Feb  8 04:33:51 2013  (02:38)
+WINDOWS_LOG_FILES_DIRECTORY_PATH = '/tmp/windows'
 
 # get_last : Time -> void
 def get_last(set)
@@ -30,52 +26,6 @@ def get_last(set)
   end
 end
 
-# get_windows_log : String Time -> Array of Sessions
-# Given the contents of a Windows log file (as a string),
-# and the Time for that dataset, throws the data into CouchDb
-def get_windows_log(logs, set)
-  # 1. Filter out anything that didn't happen after 10 minutes ago
-  # 2. Match login/logout events
-  # 3. Grab any logins that don't have a logout
-  # 4. Send it to Aggregator::Parser.parse_windows_log_line
-  entries = {}
-  logs.split("\n").each { |line|
-    line = line.strip.split(':')
-    hostname = line[0].downcase.intern
-    entries[hostname] ||= []
-    entries[hostname] << {
-      hostname: hostname,
-      event: line[1].intern,
-      os: :windows,
-      time: Time.at(line[3].to_i)
-    }
-  }
-
-  results = []
-
-  entries.each do |hostname, events|
-    until events.empty?
-      result = {}
-      cursor = events.delete_at(0)
-      if cursor[:event] == :logout
-        # Got a logout! Go find the login
-        result[:logout] = cursor
-        i = events.index { |e| e[:event] == :login }
-        result[:login] = i ? events.delete_at(i) : nil
-      else
-        # Still logged in
-        result[:login] = cursor
-        result[:logout] = nil
-      end
-      login = result[:login][:time] if result[:login]
-      logout = result[:logout][:time] if result[:logout]
-      session = Aggregator::Session.new(hostname, :windows, :tty, login, logout, set)
-      results << session if login
-    end
-  end
-
-  results
-end
 
 # Windows machines
 # Grabs all the logs for Windows machines
@@ -83,16 +33,16 @@ def get_windows
   logfiles = Dir.entries(WINDOWS_LOG_FILES_DIRECTORY_PATH)
   logfiles.delete('.')
   logfiles.delete('..')
+  logfiles.sort {|x,y| y <=> x } # Greatest first
 
-  logfilename = logfiles.map { |filename|
-    filename = "#{WINDOWS_LOG_FILES_DIRECTORY_PATH}/#{filename}"
-  }.reduce do |memo, filename|
-    File.mtime(memo) > File.mtime(filename) ? memo : filename
-  end
+  logfilename = "#{WINDOWS_LOG_FILES_DIRECTORY_PATH}/#{logfiles.first}"
 
   log = IO.readlines(logfilename, 'r')[0]
+  sessions = Aggregator::Parser.get_windows_log(log, @set)
 
-  unless session.ended and session.ended < set - 10*60
-    @db.post('/'+@database, session.to_json)
+  sessions.each do |session|
+    unless session.ended and session.ended < set - 10*60
+      @db.post('/'+@database, session.to_json)
+    end
   end
 end
