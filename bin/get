@@ -1,0 +1,48 @@
+#!/usr/bin/ruby
+
+require '../lib/aggregator'
+
+host = 'localhost'
+port = '5984'
+@database = 'allthefucks'
+@db = Aggregator::CouchDB.new(host, port)
+@set = Time.now
+WINDOWS_LOG_FILES_DIRECTORY_PATH = '/tmp/windows'
+
+# get_last : Time -> void
+def get_last(set)
+  last = (`last -Fw | grep -v root | head --lines=-2`).split("\n")
+  hostname = `hostname`.strip.downcase.intern
+  os = `uname`.strip.downcase.intern
+
+  last.each do |line|
+    # Parse it
+    session = Aggregator::Parser.parse_last_line(line, hostname, os, set)
+
+    # Send it!
+    unless session.ended and session.ended < set - 10*60
+      @db.post('/'+@database, session.to_json)
+    end
+  end
+end
+
+
+# Windows machines
+# Grabs all the logs for Windows machines
+def get_windows
+  logfiles = Dir.entries(WINDOWS_LOG_FILES_DIRECTORY_PATH)
+  logfiles.delete('.')
+  logfiles.delete('..')
+  logfiles.sort {|x,y| y <=> x } # Greatest first
+
+  logfilename = "#{WINDOWS_LOG_FILES_DIRECTORY_PATH}/#{logfiles.first}"
+
+  log = IO.readlines(logfilename, 'r')[0]
+  sessions = Aggregator::Parser.get_windows_log(log, @set)
+
+  sessions.each do |session|
+    unless session.ended and session.ended < set - 10*60
+      @db.post('/'+@database, session.to_json)
+    end
+  end
+end
