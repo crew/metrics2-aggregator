@@ -4,15 +4,21 @@ module Aggregator
     HOST = 'localhost'
     # CouchDB's port
     PORT = 1337
-    # The database
-    DATABASE = 'foobar'
+    # Databases
+    DATABASES = {
+      # Information about lab machines
+      lab_machines: 'lab_machines',
+      # Raw data from windows log files and wtmp files
+      raw_input: 'raw'
+    }
 
     # The directory the Windows log files are stored.
     # Windows log files have unix timestamps for names.
-    WINDOWS_LOG_DIR = '/where/your/windows/log/files/are/stored'
+    WINDOWS_LOG_DIR = '/tmp/windows'
+    # (These are custom created by one of our Systems guys.)
 
     # The directory the Linux w10 files are stored.
     # Linux log files have names like "#{hostname}-#{timestamp}".
-    LINUX_LOG_DIR = '/where/your/linux/log/files/are/stored'
+    LINUX_LOG_DIR = '/tmp/linux'
   end
 end

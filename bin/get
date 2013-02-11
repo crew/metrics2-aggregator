@@ -2,41 +2,44 @@
 
 require '../lib/aggregator'
 
+@config = Aggregator::Config
+@database = @config::DATABASES[:lab_machines]
 @couch = Aggregator::CouchDB.new
 
 # send : Array of Sessions -> void
 # Given an array of Sessions, throws every Session
 # that was within the last 10 minutes into CouchDb
-def send(sessions)
-  database = Aggregator::Config::DATABASE
-  sessions.each do |session|
-    ten_minutes_ago = session.set - 10*60
-
-    if (session.ended and session.ended >= ten_minutes_ago) or (session.started and session.started >= ten_minutes_ago)
-      puts "Sending #{session}"
-      @couch.post('/'+database, session.to_json)
-    else
-      puts ten_minutes_ago.asctime
-      puts session.started.asctime if session.started
-      puts session.ended.asctime if session.ended
-      puts "\n"
-    end
-
+def send(data)
+  data.each do |entry|
+    @couch.post('/'+@database, entry.to_json)
   end
+  data
 end
 
-# get_last : String -> Array of Sessions
-# Given a filename for a Linux w10 file, grabs the file,
-# parses the contents, and throws the data into CouchDb
+# get_last : String Symbol Time -> Array of Sessions
 def get_last(filename, hostname, set)
   last = (`last -Ff #{filename}| grep -v root | grep -v system | head --lines=-2`).split("\n")
-  sessions = last.map do |line|
-    Aggregator::Parser.parse_last_line(line, hostname, set)
+
+  data = {
+    hostname: hostname,
+    os: :linux,
+    users: {
+      total: 0,
+      tty: 0,
+      pts: 0
+    },
+    timestamp: set
+  }
+
+  last.map do |line|
+    session = Aggregator::Parser.parse_last_line(line, hostname, set)
+    if session.should_send?
+      data[:users][session.source] += 1
+      data[:users][:total] += 1
+    end
   end
 
-  send sessions
-
-  sessions
+  send data
 end
 
 # get_windows : String -> Array of Sessions
@@ -47,32 +50,48 @@ def get_windows(filename)
   filename = "#{Aggregator::Config::WINDOWS_LOG_DIR}/#{filename}"
   file = IO.readlines(filename, 'r')[0]
   sessions = Aggregator::Parser.get_windows_log(file, set)
-  send sessions
-  sessions
+
+  data = {
+    hostname: hostname,
+    os: :windows,
+    users: {
+      total: 0
+    },
+    timestamp: set
+  }
+
+  last.map do |line|
+    session = Aggregator::Parser.parse_last_line(line, hostname, set)
+    data[:users][:total] += 1 if session.should_send?
+  end
+
+  send data
 end
 
 # Does everything
 def download_a_car
   puts "Downloading a car"
   # Linuxy things
-  linux_log_files = Dir.entries(Aggregator::Config::LINUX_LOG_DIR)
+  linux_log_files = Dir.entries(@config::LINUX_LOG_DIR)
   linux_log_files.delete('.')
   linux_log_files.delete('..')
   
+  puts "Linux files: #{linux_log_files.size}"
   linux_log_files.each do |filename|
     hostname, set = filename.split('-')
     hostname = hostname.intern
     set = Time.at(set.to_i)
-    filename = "#{Aggregator::Config::LINUX_LOG_DIR}/#{filename}"
+    filename = "#{@config::LINUX_LOG_DIR}/#{filename}"
     puts "file: #{filename},\thostname: #{hostname},\tset: #{set}"
     get_last(filename, hostname, set)
   end
 
   # Windowsy things
-  windows_log_files = Dir.entries(Aggregator::Config::WINDOWS_LOG_DIR)
+  windows_log_files = Dir.entries(@config::WINDOWS_LOG_DIR)
   windows_log_files.delete('.')
   windows_log_files.delete('..')
 
+  puts "Windows files: #{windows_log_files.size}"
   windows_log_files.each do |filename|
     puts "file: #{filename}"
     get_windows(filename)

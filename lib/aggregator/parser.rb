@@ -20,7 +20,7 @@ module Aggregator
         line << nil
       elsif line[-3, 3].join(' ') == 'still logged in'
         line.pop(3)
-        line << nil
+        line << set
       else
         line.pop
         tmp = Time.from_asctime(line.pop(5).join(' '))
