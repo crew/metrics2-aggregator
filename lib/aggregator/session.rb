@@ -30,6 +30,14 @@ module Aggregator
       hash.to_json
     end
 
+    # should_send? : Time -> Boolean
+    # Session should be counted/saved if it started or ended at least
+    # ten minutes after the given timestamp
+    def should_send?
+      ten_minutes_ago = @set - 10*60
+      (@ended and @ended >= ten_minutes_ago) or (@started and @started >= ten_minutes_ago)
+    end
+
   end
 end
 
