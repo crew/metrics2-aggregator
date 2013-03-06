@@ -2,6 +2,8 @@
 and shouldn't be moved into production until it doesn't suck, and
 has some automated testing thrown in.
 
+[![Code Climate](https://codeclimate.com/github/crew/metrics2-aggregator.png)](https://codeclimate.com/github/crew/metrics2-aggregator)
+
 Aggregator
 ==========
 
