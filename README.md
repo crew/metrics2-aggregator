@@ -7,11 +7,12 @@ has some automated testing thrown in.
 Aggregator
 ==========
 
-The aggregator will take data from the source `who` and the given windows log
+The aggregator will take data from wtmp files and the given windows log
 files
 
-The aggregator will generate a PUT request with the following format
-```
+The aggregator will throw a PUT request at CouchDB with the following format
+
+```json
 {
   "os": "ubuntu",
   "machine": "agentx",
