@@ -10,9 +10,7 @@ require '../lib/aggregator'
 # Given an array of Sessions, throws every Session
 # that was within the last 10 minutes into CouchDb
 def send(data)
-  data.each do |entry|
-    @couch.post('/'+@database, entry.to_json)
-  end
+  @couch.post('/'+@database, data.to_json)
   data
 end
 
@@ -28,7 +26,7 @@ def get_last(filename, hostname, set)
       tty: 0,
       pts: 0
     },
-    timestamp: set
+    timestamp: set.to_i
   }
 
   last.map do |line|
@@ -57,7 +55,7 @@ def get_windows(filename)
     users: {
       total: 0
     },
-    timestamp: set
+    timestamp: set.to_i
   }
 
   last.map do |line|
